@@ -99,7 +99,7 @@ uvicorn app.main:app --reload --log-level debug
 4. Ajuste os filtros conforme necessário
 
 ## Estrutura do Projeto
-
+(pasta app.zip deve ser descopactada)
 ```
 app/
 ├── api/
@@ -135,6 +135,7 @@ Os logs são salvos em:
 3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
 4. Push para a branch (`git push origin feature/AmazingFeature`)
 5. Abra um Pull Request
+   
 
 ## Desenvolvimento
 
@@ -143,6 +144,7 @@ O projeto está em desenvolvimento ativo, com atualizações frequentes incluind
 - Treinamento de modelos
 - Otimizações de interface
 
+## Repositorio de treimanamento dos modelos **https://github.com/Louzada27/TreinamentoNLP**
 ## Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
