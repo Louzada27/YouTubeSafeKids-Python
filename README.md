@@ -84,7 +84,7 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edite o arquivo .env com suas configurações
 ```
-
+5. pasta app.zip deve ser descopactada
 ## Uso
 
 1. Inicie o servidor:
@@ -99,7 +99,7 @@ uvicorn app.main:app --reload --log-level debug
 4. Ajuste os filtros conforme necessário
 
 ## Estrutura do Projeto
-(pasta app.zip deve ser descopactada)
+
 ```
 app/
 ├── api/
