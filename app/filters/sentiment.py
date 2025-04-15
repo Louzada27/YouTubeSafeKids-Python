@@ -1,109 +1,148 @@
-from transformers import pipeline
+"""
+Filtro de sentimento para análise de vídeos do YouTube.
+Usa o modelo BERTimbau treinado para classificar o sentimento dos títulos e descrições dos vídeos.
+"""
+
+import torch
+from transformers import BertForSequenceClassification, BertTokenizer
+import logging
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 from .base import BaseFilter
-from typing import Dict, Any
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+import logging
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
 class SentimentFilter(BaseFilter):
-    """
-    Filtro para análise de sentimento usando BERTimbau.
-    """
-    
-    def __init__(self):
+    def __init__(self, 
+                 min_score: float = 0.6,
+                 allowed_sentiments: Optional[List[str]] = None):
+        """
+        Inicializa o filtro de sentimento.
+        
+        Args:
+            model_path: Caminho para o modelo treinado
+            min_score: Score mínimo para considerar a classificação
+            allowed_sentiments: Lista de sentimentos permitidos
+        """
         super().__init__(
             name="Sentimento",
-            description="Filtra por sentimento",
+            description="Filtra por sentimento do conteúdo",
             default_enabled=True
         )
-        self.classifier = pipeline("sentiment-analysis", model="neuralmind/bert-base-portuguese-cased")
         
+      
+        self.model = AutoModelForSequenceClassification.from_pretrained("GargulaCapixava/ModeloLexiconPT")
+        self.tokenizer = AutoTokenizer.from_pretrained("GargulaCapixava/ModeloLexiconPT")
+        
+        # Mapeamento de índices para sentimentos
+        self.sentiment_map = {
+            0: "Positivo",
+            1: "Negativo",
+            2: "Neutro"
+        }
+        
+        # Configurações do filtro
+        self.min_score = min_score
+        self.allowed_sentiments = allowed_sentiments or ["Negativo", "Neutro"]
+        
+        logger.info("Modelo de sentimento carregado com sucesso!")
+
+    def analyze_text(self, text: str) -> Dict:
+        """
+        Analisa o sentimento de um texto.
+        
+        Args:
+            text: Texto para análise
+            
+        Returns:
+            Dict com a análise de sentimento
+        """
+        # Tokeniza o texto
+        inputs = self.tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=128,
+            padding=True
+        )
+        
+        # Faz a previsão
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            predicted_label = torch.argmax(predictions, dim=-1).item()
+            probabilities = predictions[0].tolist()
+        
+        # Obtém o score final (probabilidade do sentimento predito)
+        final_score = probabilities[predicted_label]
+        
+        # Formata o resultado
+        result = {
+            "texto": text,
+            "sentimento": self.sentiment_map[predicted_label],
+            "score_final": final_score,
+            "probabilidades": {
+                self.sentiment_map[i]: prob for i, prob in enumerate(probabilities)
+            },
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return result
+
     def process(self, video_data: Dict[str, Any]) -> float:
         """
-        Processa o vídeo e retorna uma pontuação entre 0 e 1.
-        O score é baseado na confiança da classificação e no tipo de sentimento desejado.
+   
+        
+        Args:
+            video_data: Dicionário com os dados do vídeo
+            
+        Returns:
+            float: Pontuação entre 0 e 1
         """
-        text = f"{video_data.get('title', '')} {video_data.get('description', '')} {video_data.get('transcript', '')}"
-        if not text.strip():
-            return 0.5  # Neutro quando não há texto
-            
-        # Divide o texto em chunks de no máximo 512 tokens
-        chunks = self._split_text(text)
+ 
+        description_analysis = self.analyze_text(video_data.get('description', ''))
         
-        # Processa cada chunk
-        sentiments = []
-        confidences = []
+   
+        description_prob = description_analysis["probabilidades"]["Negativo"]
+
+      
+        description_prob = 1 - description_prob
+
         
-        for chunk in chunks:
-            try:
-                result = self.classifier(chunk)[0]
-                sentiments.append(result['label'])
-                confidences.append(result['score'])
-            except Exception as e:
-                print(f"Erro ao processar chunk: {e}")
-                continue
-                
-        if not sentiments:
-            return 0.5  # Neutro quando não há resultados
-            
-        # Conta a frequência de cada sentimento
-        positive_count = sentiments.count("POSITIVE")
-        negative_count = sentiments.count("NEGATIVE")
-        total = len(sentiments)
+     
+
         
-        # Calcula a proporção de cada sentimento
-        positive_ratio = positive_count / total
-        negative_ratio = negative_count / total
-        neutral_ratio = 1 - (positive_ratio + negative_ratio)
+        # Adiciona as análises aos dados do vídeo
+        video_data['sentiment_analysis'] = {
+            'title': 0,
+            'description': description_analysis,
+            'combined_positive_prob':  description_prob ,
+            'final_score':  description_prob 
+        }
         
-        # Calcula a confiança média
-        avg_confidence = sum(confidences) / len(confidences)
-        
-        # Obtem o valor do filtro de sentimento (0-100)
-        # Onde 0 = prefere conteúdo triste, 100 = prefere conteúdo alegre, 50 = neutro
-        sentiment_value = video_data.get('Sentimento', 50)
-        
-        # Normaliza para um valor entre 0 e 1
-        normalized_value = sentiment_value / 100
-        
-        # Calcula o score baseado na preferência de sentimento
-        # - Se o valor for baixo (triste), multiplica o ratio negativo por um peso maior
-        # - Se o valor for alto (alegre), multiplica o ratio positivo por um peso maior
-        # - Se o valor for meio (neutro), valoriza conteúdo neutro
-        if normalized_value < 0.33:  # Preferência por conteúdo triste
-            score = negative_ratio * avg_confidence
-        elif normalized_value > 0.66:  # Preferência por conteúdo alegre
-            score = positive_ratio * avg_confidence
-        else:  # Preferência por conteúdo neutro
-            score = neutral_ratio * avg_confidence
-            
-        return score
-            
-    def _split_text(self, text: str, max_length: int = 512) -> list:
-        """
-        Divide o texto em chunks menores para processamento.
-        """
-        words = text.split()
-        chunks = []
-        current_chunk = []
-        
-        for word in words:
-            current_chunk.append(word)
-            if len(current_chunk) >= max_length:
-                chunks.append(' '.join(current_chunk))
-                current_chunk = []
-                
-        if current_chunk:
-            chunks.append(' '.join(current_chunk))
-            
-        return chunks
-        
-    def get_filter_info(self) -> Dict[str, Any]:
+        return  description_prob 
+
+    def get_filter_info(self) -> Dict:
         """
         Retorna informações sobre o filtro.
+        
+        Returns:
+            Dict com informações do filtro
         """
         return {
             "name": self.name,
             "description": self.description,
             "enabled": self.enabled,
             "weight": self.weight,
-            "type": "sentiment",
-            "default_value": 100
+            "parameters": {
+                "min_score": self.min_score,
+                "allowed_sentiments": self.allowed_sentiments
+            }
         } 

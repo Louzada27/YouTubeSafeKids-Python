@@ -67,13 +67,13 @@ class FilterManager {
     setFilterDefaultValues() {
         // Define valores padrão específicos para cada filtro
         const defaultValues = {
-            'Educacional': 100,
+            'Educacional': 0,
             'Toxicidade': 0,
-            'Linguagem Imprópria': 0,
-            'Diversidade': 100,
-            'Interatividade': 100,
-            'Engajamento': 100,
-            'Sentimento': 100,
+            'Linguagem': 0,
+            'Diversidade': 0,
+            'Interatividade': 0,
+            'Engajamento': 0,
+            'Sentimento': 0,
             'Conteúdo Sensível': 0
         };
         

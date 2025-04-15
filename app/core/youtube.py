@@ -6,6 +6,7 @@ import isodate
 import logging
 import traceback
 import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +104,25 @@ class YouTubeAPI:
                         'like_count': int(item['statistics'].get('likeCount', 0)),
                         'comment_count': int(item['statistics'].get('commentCount', 0))
                     }
-                    videos.append(video_data)
-                    logger.info(f"Processed video: '{video_data['title']}' - Duration: {duration} seconds")
+
+                    # Tenta obter a transcrição
+                    try:
+                        transcript = YouTubeTranscriptApi.get_transcript(
+                            item['id'],
+                            languages=['pt', 'en']
+                        )
+                        video_data['transcription'] = ' '.join(item['text'] for item in transcript)
+                        logger.debug(f"Successfully retrieved transcript for video {item['id']}")
+                        
+                        # Só adiciona o vídeo se tiver transcrição
+                        if video_data['transcription'].strip():
+                            videos.append(video_data)
+                            logger.info(f"Processed video: '{video_data['title']}' - Duration: {duration} seconds")
+                        else:
+                            logger.warning(f"Video {item['id']} has empty transcript, skipping")
+                    except Exception as e:
+                        logger.warning(f"Could not get transcript for video {item['id']}: {str(e)}")
+                        continue  # Pula o vídeo se não conseguir obter a transcrição
                 except Exception as e:
                     logger.error(f"Error processing video {item.get('id', 'unknown')}: {str(e)}")
                     logger.error(traceback.format_exc())
@@ -146,6 +164,10 @@ class YouTubeAPI:
                     languages=['pt', 'en']
                 )
                 transcript_text = ' '.join(item['text'] for item in transcript)
+                # Usa o diretório do projeto para salvar a transcrição
+                transcript_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "transcription.txt")
+                with open(transcript_path, "w", encoding='utf-8') as f:
+                    f.write(transcript_text)
                 logger.debug(f"Successfully retrieved transcript for video {video_id}")
             except Exception as e:
                 logger.warning(f"Could not get transcript for video {video_id}: {str(e)}")

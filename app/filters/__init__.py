@@ -111,6 +111,7 @@ class FilterManager:
         self.logger.info(f"\n=== Processando vídeo ===")
         self.logger.info(f"Título: {video.get('title', 'Desconhecido')}")
         self.logger.info(f"ID: {video.get('id', 'Desconhecido')}")
+        self.logger.info(f"Chaves disponíveis no vídeo: {list(video.keys())}")
         
         if 'duration_seconds' in video:
             minutes = video['duration_seconds'] / 60

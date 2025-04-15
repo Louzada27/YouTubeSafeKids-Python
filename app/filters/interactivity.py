@@ -33,7 +33,7 @@ class InteractivityFilter(BaseFilter):
             "description": self.description,
             "enabled": self.enabled,
             "type": "interactivity",
-            "default_value": 100,
+            "default_value": 0,
             "options": {
                 "interactivity_levels": [
                     {"value": "all", "label": "Todos os níveis"},
